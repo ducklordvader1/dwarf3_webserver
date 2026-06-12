@@ -7,6 +7,7 @@ Beware: I created the webserver entirely using vibe-coding, so use at your own r
 Start it with
   python3 dwarf3_standalone_webserver.py TELESCOPE_IP
   
-with TELECOPE_IP being the IP_Adress of your dwarf3. The webserver then will spawn on port TCP:5000
+with TELECOPE_IP being the IP_Adress of your dwarf3. The webserver then will spawn on port TCP:5000, 
+so by browsing to http://127.0.0.1:5000 (or whatever your PC's IP on the network is) you will reach the webserver.
 
 Enjoy!
