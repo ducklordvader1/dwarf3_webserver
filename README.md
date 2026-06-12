@@ -6,6 +6,7 @@ Beware: I created the webserver entirely using vibe-coding, so use at your own r
 
 Start it with
   python3 dwarf3_standalone_webserver.py TELESCOPE_IP
+  
 with TELECOPE_IP being the IP_Adress of your dwarf3.
 
 Enjoy!
