@@ -25,10 +25,14 @@ in `dwarflab_controller.py` for version-specific details.
 | `static/index.html` | Single-page browser UI served at `/`. |
 | `start_dwarf.sh` | Starts the server as a detached daemon (writes PID to `/tmp/dwarf_web.pid`, logs to `/tmp/dwarf_web.log`). |
 | `stop_dwarf.sh` | Stops the daemon via the PID file. |
+| `start_dwarf.bat` | Windows equivalent of `start_dwarf.sh` (detached window, logs to `%TEMP%\dwarf_web.log`). |
+| `stop_dwarf.bat` | Windows equivalent of `stop_dwarf.sh`. |
 
 ---
 
 ## Quick start
+
+### Linux / macOS
 
 ```bash
 # 1. Install dependencies (once)
@@ -47,6 +51,25 @@ sudo apt install -y ffmpeg
 # 4. Stop it
 ./stop_dwarf.sh
 ```
+
+### Windows
+
+```bat
+REM 1. Install dependencies (once); ensure Python 3 and ffmpeg are on PATH
+pip install flask flask-socketio opencv-python-headless requests websocket-client
+
+REM 2. Start the server (defaults to 192.168.1.10 if no IP is given)
+start_dwarf.bat 192.168.1.10
+
+REM 3. Open the UI
+REM    http://localhost:5000
+
+REM 4. Stop it
+stop_dwarf.bat
+```
+
+> Download ffmpeg for Windows from <https://www.gyan.dev/ffmpeg/builds/> and
+> add its `bin` folder to your `PATH` so `ffmpeg`/`ffprobe` are available.
 
 The telescope must be joined to the same network. Its default soft-AP address
 is `192.168.88.1`; once joined to your WiFi it gets a DHCP lease (the examples
