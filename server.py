@@ -1,6 +1,6 @@
 import cv2
 import secrets
-import sys, time, threading, logging, subprocess, os, argparse
+import time, threading, logging, subprocess, os, argparse, json
 from flask import Flask, jsonify, request, Response
 from flask_socketio import SocketIO, emit
 from dwarflab_controller import DwarfLab
@@ -59,11 +59,10 @@ def rtsp_to_mjpeg(channel="ch0"):
     The camera must be opened first via WebSocket (CMD_CAMERA_TELE_OPEN_CAMERA=10000)
     and live-view started (CMD_ASTRO_GO_LIVE=11010) before RTSP is available.
     """
-    import cv2, time
     rtsp_url = f"rtsp://{TELESCOPE_IP}:554/{channel}/stream0"
     log.info(f"RTSP stream starting: {rtsp_url}")
     # Suppress HEVC decoder noise (POC reference warnings) from FFmpeg stderr
-    import os; os.environ.setdefault("OPENCV_FFMPEG_LOGLEVEL", "0")
+    os.environ.setdefault("OPENCV_FFMPEG_LOGLEVEL", "0")
     CRLF = bytes([13,10])
     cap = None
     while True:
@@ -415,7 +414,6 @@ def dev_anti_tangle():
 @app.route("/snapshot")
 def snapshot():
     """Capture a single JPEG frame from the tele stream and return it."""
-    import cv2
     channel = request.args.get("channel", "ch0")
     if channel not in ("ch0", "ch1"):
         return api_err("channel must be ch0 or ch1")
@@ -447,7 +445,6 @@ def snapshot():
 @app.route("/stream/info")
 def stream_info():
     """Quick probe of RTSP stream availability."""
-    import subprocess, json
     results = {}
     for ch, label in [("ch0","tele"), ("ch1","wide")]:
         url = f"rtsp://{TELESCOPE_IP}:554/{ch}/stream0"

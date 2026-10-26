@@ -13,6 +13,11 @@ in `dwarflab_controller.py` for version-specific details.
 > **Security:** This application has no authentication, authorization, or
 > transport encryption of any kind. Run it only on an internal, trusted
 > network — never expose it directly to the public internet.
+>
+> It also runs Flask-SocketIO on the built-in Werkzeug development server
+> (`allow_unsafe_werkzeug=True`), which is fine for single-user LAN use but
+> is not a hardened production server. For anything beyond a trusted local
+> network, front it with a proper WSGI/ASGI server and a reverse proxy.
 
 ---
 
