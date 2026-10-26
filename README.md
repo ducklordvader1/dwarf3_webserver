@@ -6,10 +6,9 @@ telescope's native WebSocket protocol and re-streams the camera over the
 browser, giving full control of camera, astro, focus, motion and device
 functions from any device on the local network.
 
-The protocol was reverse-engineered from the official `com.convergence.dwarflab`
-Android app (most recently the **October 2026** release). See
-[Protocol notes](#protocol-notes) and the changelog header in
-`dwarflab_controller.py` for the full history of findings.
+The protocol implementation targets the **October 2026** DWARF 3 firmware
+generation. See [Protocol notes](#protocol-notes) and the changelog header
+in `dwarflab_controller.py` for version-specific details.
 
 ---
 
@@ -174,26 +173,27 @@ stacking state notifications.
 
 ## Protocol notes
 
-* The command map is kept verbatim against each APK release. The October 2026
-  app packs the `WsCmd` map as an obfuscated Kotlin enum; several numbers are
-  hidden behind Firebase/Compose constant aliases (resolved in the controller's
+* The command map is kept verbatim against each firmware generation. In the
+  October 2026 generation the command map is packed as an obfuscated enum, with
+  several numbers hidden behind aliased constants (resolved in the controller's
   changelog).
 * `module_id` is the **ordinal** of the `WsModuleId` enum (no explicit numbers),
   so device commands route to module **18**, not 17.
-* Known APK quirks handled in the controller: `CMD_CAMERA_WIDE_START/STOP_RECORD`
+* Known protocol quirks handled in the controller: `CMD_CAMERA_WIDE_START/STOP_RECORD`
   are 12030/12031 (not 12005/6); `CMD_ASTRO_WIDE_GO_LIVE` is 11020 (11019 is
   `STOP_EQ_SOLVING`); the voice-assistant module (16800) is intentionally **not**
   implemented.
 
 ---
 
-## Re-checking against a new APK
+## Updating for a new firmware generation
 
-1. Pull the new APK, decompile with `jadx -d <out> <apk>`.
-2. Diff `.../data/bean/ws/WsCmd.java` against the controller's command map.
-3. For any new command, read its `Ws*Req.java` to get the payload message and
-   its proto field layout (`.../proto/*Proto.java` descriptor string), plus the
-   `WsModuleId` ordinal for routing.
+When the DWARF 3 protocol changes, refresh the controller's command map:
+
+1. Obtain the updated command map for the new firmware generation.
+2. Diff it against the controller's `CMD_*` constants.
+3. For any new command, determine its payload message and proto field
+   layout, plus the `WsModuleId` ordinal used for routing.
 4. Add the constant, a `DwarfLab` method, and (if it pushes state) a notify
    handler + a `state` field; add a REST endpoint in `server.py`.
 
