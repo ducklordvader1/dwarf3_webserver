@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DWARF Lab Telescope Control</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js" integrity="sha512-Xm9qbB6Pu06k3PUwPj785dyTl6oHxgsv9nHp7ej7nCpAqGZT3OZpsELuCYX05DdonFpTlBpXMOxjavIAIUwr0w==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#080c10; --panel:#0d1219; --border:#1a2332; --accent:#4af0d4;
+  --accent2:#f06040; --accent3:#a0c8ff; --text:#c8d8e8; --muted:#4a6070;
+  --success:#3ad080; --warn:#f0b840; --danger:#f04050;
+  --font-mono:"Space Mono",monospace; --font-ui:"Syne",sans-serif;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--font-ui);min-height:100vh;overflow-x:hidden}
+body::before{content:"";position:fixed;inset:0;z-index:0;
+  background-image:
+    radial-gradient(1px 1px at 10% 15%,rgba(255,255,255,.5) 0%,transparent 100%),
+    radial-gradient(1px 1px at 25% 42%,rgba(255,255,255,.3) 0%,transparent 100%),
+    radial-gradient(1px 1px at 40% 8%,rgba(255,255,255,.4) 0%,transparent 100%),
+    radial-gradient(1px 1px at 60% 72%,rgba(255,255,255,.5) 0%,transparent 100%),
+    radial-gradient(1px 1px at 75% 30%,rgba(255,255,255,.3) 0%,transparent 100%),
+    radial-gradient(1px 1px at 88% 55%,rgba(255,255,255,.4) 0%,transparent 100%),
+    radial-gradient(1px 1px at 92% 12%,rgba(255,255,255,.5) 0%,transparent 100%),
+    radial-gradient(1px 1px at 18% 80%,rgba(255,255,255,.3) 0%,transparent 100%),
+    radial-gradient(1px 1px at 50% 90%,rgba(255,255,255,.4) 0%,transparent 100%),
+    radial-gradient(1px 1px at 78% 75%,rgba(255,255,255,.3) 0%,transparent 100%);
+  pointer-events:none}
+.app{position:relative;z-index:1;display:grid;grid-template-rows:auto 1fr;min-height:100vh}
+header{display:flex;align-items:center;gap:16px;padding:12px 24px;
+  background:linear-gradient(135deg,#0d1a28 0%,#0a1420 100%);
+  border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100}
+.logo{display:flex;align-items:center;gap:10px}
+.logo-icon{width:36px;height:36px;border:2px solid var(--accent);border-radius:50%;
+  display:flex;align-items:center;justify-content:center;position:relative;
+  box-shadow:0 0 12px rgba(74,240,212,.3)}
+.logo-icon::before{content:"";width:10px;height:10px;background:var(--accent);
+  border-radius:50%;box-shadow:0 0 8px var(--accent)}
+.logo-icon::after{content:"";position:absolute;width:24px;height:1px;
+  background:var(--accent);opacity:.4;transform:rotate(45deg)}
+.logo-text{font-size:18px;font-weight:800;letter-spacing:.08em;color:white}
+.logo-sub{font-family:var(--font-mono);font-size:9px;color:var(--muted);letter-spacing:.15em;text-transform:uppercase}
+header .spacer{flex:1}
+#status-dot{width:8px;height:8px;border-radius:50%;background:var(--danger);
+  box-shadow:0 0 6px var(--danger);transition:all .5s;animation:pulse-red 2s infinite}
+#status-dot.connected{background:var(--success);box-shadow:0 0 6px var(--success);animation:pulse-green 3s infinite}
+@keyframes pulse-red{0%,100%{opacity:1}50%{opacity:.4}}
+@keyframes pulse-green{0%,100%{opacity:1}50%{opacity:.7}}
+#status-text{font-family:var(--font-mono);font-size:10px;color:var(--muted);letter-spacing:.1em}
+.btn-connect{font-family:var(--font-mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--accent);background:rgba(74,240,212,.08);border:1px solid rgba(74,240,212,.3);
+  padding:6px 14px;border-radius:4px;cursor:pointer;transition:all .2s}
+.btn-connect:hover{background:rgba(74,240,212,.18);border-color:var(--accent)}
+.main{display:grid;grid-template-columns:270px 1fr 255px;gap:1px;background:var(--border);height:calc(100vh - 61px)}
+.panel{background:var(--panel);overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--border) transparent}
+.video-panel{grid-column:2;grid-row:1/3;display:flex;flex-direction:column;background:#040608}
+.video-wrap{flex:1;position:relative;display:flex;align-items:center;justify-content:center;
+  background:radial-gradient(ellipse at center,#0a1520 0%,#040608 100%);min-height:0}
+.video-wrap img{max-width:100%;max-height:100%;object-fit:contain;display:block}
+.video-overlay{position:absolute;top:12px;left:12px;display:flex;flex-direction:column;gap:6px;pointer-events:none}
+.vtag{font-family:var(--font-mono);font-size:9px;letter-spacing:.1em;color:var(--accent);
+  background:rgba(4,6,8,.7);border:1px solid rgba(74,240,212,.2);padding:3px 8px;border-radius:2px}
+.crosshair{position:absolute;inset:0;pointer-events:none;display:flex;align-items:center;justify-content:center}
+.crosshair::before,.crosshair::after{content:"";position:absolute;background:rgba(74,240,212,.15)}
+.crosshair::before{width:1px;height:40px}
+.crosshair::after{width:40px;height:1px}
+.no-signal{display:flex;flex-direction:column;align-items:center;gap:12px;color:var(--muted)}
+.no-signal-icon{font-size:48px;opacity:.3}
+.no-signal p{font-family:var(--font-mono);font-size:11px;letter-spacing:.15em;text-transform:uppercase}
+.video-toolbar{display:flex;align-items:center;gap:8px;padding:10px 16px;
+  border-top:1px solid var(--border);background:rgba(13,18,25,.8)}
+.vid-btn{font-family:var(--font-mono);font-size:10px;background:rgba(255,255,255,.04);
+  border:1px solid var(--border);color:var(--text);padding:5px 12px;border-radius:3px;
+  cursor:pointer;transition:all .15s;letter-spacing:.08em}
+.vid-btn:hover{background:rgba(255,255,255,.1);border-color:var(--accent);color:var(--accent)}
+.vid-btn.danger{color:var(--danger);border-color:rgba(240,64,80,.3)}
+.vid-btn.danger:hover{background:rgba(240,64,80,.1);border-color:var(--danger)}
+.section-hdr{font-family:var(--font-mono);font-size:9px;font-weight:700;letter-spacing:.2em;
+  text-transform:uppercase;color:var(--muted);padding:14px 16px 6px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:8px}
+.section-hdr::before{content:"";width:3px;height:10px;background:var(--accent);border-radius:1px}
+.btn-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:10px 12px}
+.btn-grid.cols-1{grid-template-columns:1fr}
+.btn-grid.cols-3{grid-template-columns:1fr 1fr 1fr}
+.btn{font-family:var(--font-mono);font-size:10px;letter-spacing:.06em;background:rgba(255,255,255,.04);
+  border:1px solid var(--border);color:var(--text);padding:8px 6px;border-radius:4px;
+  cursor:pointer;transition:all .15s;text-align:center;line-height:1.3}
+.btn:hover{background:rgba(255,255,255,.09);border-color:rgba(200,216,232,.3);color:white}
+.btn:active{transform:scale(.97)}
+.btn.primary{border-color:rgba(74,240,212,.3);color:var(--accent);background:rgba(74,240,212,.05)}
+.btn.primary:hover{background:rgba(74,240,212,.15);border-color:var(--accent)}
+.btn.danger{border-color:rgba(240,64,80,.3);color:var(--danger);background:rgba(240,64,80,.05)}
+.btn.danger:hover{background:rgba(240,64,80,.15);border-color:var(--danger)}
+.btn.warn{border-color:rgba(240,184,64,.3);color:var(--warn)}
+.btn.warn:hover{background:rgba(240,184,64,.1);border-color:var(--warn)}
+.btn.success{border-color:rgba(58,208,128,.3);color:var(--success)}
+.btn.success:hover{background:rgba(58,208,128,.1);border-color:var(--success)}
+.btn.wide{grid-column:1/-1}
+.joystick-wrap{display:flex;flex-direction:column;align-items:center;gap:10px;padding:12px}
+.joystick-grid{display:grid;grid-template-columns:repeat(3,48px);grid-template-rows:repeat(3,48px);gap:4px}
+.joy-btn{background:rgba(255,255,255,.04);border:1px solid var(--border);color:var(--text);
+  border-radius:4px;cursor:pointer;display:flex;align-items:center;justify-content:center;
+  font-size:18px;transition:all .1s;user-select:none}
+.joy-btn:hover{background:rgba(74,240,212,.12);border-color:var(--accent);color:var(--accent)}
+.joy-btn:active{transform:scale(.93);background:rgba(74,240,212,.2)}
+.joy-btn.center{border-color:rgba(240,64,80,.3);color:var(--danger);font-size:13px}
+.joy-btn.center:hover{background:rgba(240,64,80,.12)}
+.joy-btn.empty{background:transparent;border:none;pointer-events:none}
+.joy-speed-wrap{display:flex;align-items:center;gap:8px;width:100%}
+.joy-speed-label{font-family:var(--font-mono);font-size:9px;color:var(--muted);white-space:nowrap}
+#joy-speed{flex:1;accent-color:var(--accent)}
+#joy-speed-val{font-family:var(--font-mono);font-size:10px;color:var(--accent);min-width:28px;text-align:right}
+.param-row{display:flex;align-items:center;gap:8px;padding:6px 12px}
+.param-label{font-family:var(--font-mono);font-size:9px;color:var(--muted);min-width:72px}
+.param-row input[type=range]{flex:1;accent-color:var(--accent)}
+.param-val{font-family:var(--font-mono);font-size:10px;color:var(--accent);min-width:28px;text-align:right}
+.goto-form{padding:10px 12px;display:flex;flex-direction:column;gap:8px}
+.goto-row{display:flex;align-items:center;gap:8px}
+.goto-label{font-family:var(--font-mono);font-size:9px;color:var(--muted);min-width:38px}
+.goto-input{flex:1;background:rgba(255,255,255,.04);border:1px solid var(--border);
+  color:var(--text);font-family:var(--font-mono);font-size:11px;padding:6px 8px;
+  border-radius:3px;outline:none}
+.goto-input:focus{border-color:var(--accent)}
+.presets{display:flex;flex-wrap:wrap;gap:4px;padding:0 12px 8px}
+.preset-btn{font-family:var(--font-mono);font-size:9px;background:rgba(255,255,255,.04);
+  border:1px solid var(--border);color:var(--muted);padding:3px 8px;border-radius:3px;cursor:pointer;transition:all .15s}
+.preset-btn:hover{border-color:var(--accent3);color:var(--accent3);background:rgba(160,200,255,.08)}
+.solar-grid{display:flex;flex-wrap:wrap;gap:5px;padding:8px 12px}
+.solar-btn{font-family:var(--font-mono);font-size:9px;background:rgba(255,255,255,.04);
+  border:1px solid var(--border);color:var(--text);padding:5px 10px;border-radius:3px;cursor:pointer;transition:all .15s}
+.solar-btn:hover{background:rgba(240,184,64,.1);border-color:var(--warn);color:var(--warn)}
+.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--border)}
+.stat-cell{background:var(--panel);padding:10px 12px;display:flex;flex-direction:column;gap:2px}
+.stat-key{font-family:var(--font-mono);font-size:8px;color:var(--muted);letter-spacing:.12em;text-transform:uppercase}
+.stat-val{font-family:var(--font-mono);font-size:13px;color:var(--accent)}
+.stat-val.ok{color:var(--success)}.stat-val.warn{color:var(--warn)}.stat-val.alert{color:var(--danger)}
+#log{font-family:var(--font-mono);font-size:9px;padding:8px 12px;
+  display:flex;flex-direction:column;gap:3px;max-height:160px;overflow-y:auto}
+.log-line{display:flex;gap:8px}
+.log-time{color:var(--muted);flex-shrink:0}
+.log-msg{color:var(--text)}.log-msg.ok{color:var(--success)}.log-msg.err{color:var(--danger)}.log-msg.info{color:var(--accent3)}
+#toast{position:fixed;bottom:24px;right:24px;z-index:999;
+  font-family:var(--font-mono);font-size:11px;background:rgba(13,18,25,.95);
+  border:1px solid var(--accent);color:var(--accent);padding:10px 18px;border-radius:4px;
+  box-shadow:0 4px 24px rgba(0,0,0,.5);transform:translateY(60px);opacity:0;
+  transition:all .3s cubic-bezier(.2,.8,.2,1);pointer-events:none}
+#toast.show{transform:translateY(0);opacity:1}
+#toast.err{border-color:var(--danger);color:var(--danger)}
+.modal-backdrop{display:none;position:fixed;inset:0;z-index:500;
+  background:rgba(0,0,0,.7);align-items:center;justify-content:center}
+.modal-box{background:var(--panel);border:1px solid var(--border);
+  padding:24px;border-radius:6px;min-width:280px}
+.modal-title{font-weight:800;font-size:14px;margin-bottom:16px;color:var(--accent)}
+.modal-actions{display:flex;gap:8px;margin-top:16px}
+</style>
+</head>
+<body>
+<div class="app">
+<header>
+  <div class="logo">
+    <div class="logo-icon"></div>
+    <div><div class="logo-text">DWARF LAB</div><div class="logo-sub">Telescope Control System</div></div>
+  </div>
+  <div class="spacer"></div>
+  <div id="status-dot"></div>
+  <span id="status-text">DISCONNECTED</span>
+  <button class="btn-connect" onclick="connectTelescope()">CONNECT</button>
+</header>
+<div class="main">
+
+<!-- LEFT PANEL -->
+<div class="panel">
+  <div class="section-hdr">Camera</div>
+  <div class="btn-grid">
+    <button class="btn primary wide" onclick="startLive()">▶ START LIVE</button>
+    <button class="btn" onclick="api('camera/photo')">Photo</button>
+    <button class="btn" onclick="api('camera/photo_raw')">RAW</button>
+    <button class="btn" onclick="api('camera/record_start')">Rec Start</button>
+    <button class="btn danger" onclick="api('camera/record_stop')">Rec Stop</button>
+    <button class="btn" onclick="api('camera/burst',{count:5})">Burst x5</button>
+    <button class="btn" onclick="api('camera/burst_stop')">Burst Stop</button>
+    <button class="btn" onclick="api('camera/timelapse_start')">Timelapse</button>
+    <button class="btn danger" onclick="api('camera/timelapse_stop')">Stop TL</button>
+  </div>
+  <div class="section-hdr">Image Parameters</div>
+  <div class="param-row"><span class="param-label">Exposure</span><input type="range" min="0" max="20" value="5" oninput="updateParam('exposure',this.value)"><span class="param-val" id="v-exposure">5</span></div>
+  <div class="param-row"><span class="param-label">Gain</span><input type="range" min="0" max="20" value="0" oninput="updateParam('gain',this.value)"><span class="param-val" id="v-gain">0</span></div>
+  <div class="param-row"><span class="param-label">Brightness</span><input type="range" min="-50" max="50" value="0" oninput="updateParam('brightness',this.value)"><span class="param-val" id="v-brightness">0</span></div>
+  <div class="param-row"><span class="param-label">Contrast</span><input type="range" min="-50" max="50" value="0" oninput="updateParam('contrast',this.value)"><span class="param-val" id="v-contrast">0</span></div>
+  <div class="param-row"><span class="param-label">Saturation</span><input type="range" min="-50" max="50" value="0" oninput="updateParam('saturation',this.value)"><span class="param-val" id="v-saturation">0</span></div>
+  <div class="param-row"><span class="param-label">Sharpness</span><input type="range" min="0" max="10" value="0" oninput="updateParam('sharpness',this.value)"><span class="param-val" id="v-sharpness">0</span></div>
+  <div class="param-row"><span class="param-label">WB Colour T</span><input type="range" min="0" max="20" value="10" oninput="updateParam('wb_ct',this.value)"><span class="param-val" id="v-wb_ct">10</span></div>
+  <div class="param-row"><span class="param-label">JPG Quality</span><input type="range" min="1" max="10" value="8" oninput="updateParam('jpg_quality',this.value)"><span class="param-val" id="v-jpg_quality">8</span></div>
+  <div class="btn-grid cols-1" style="padding-top:4px"><button class="btn primary" onclick="sendAllParams()">APPLY PARAMS</button></div>
+  <div class="section-hdr">Focus</div>
+  <div class="btn-grid cols-3">
+    <button class="btn primary" onclick="api('focus/auto')">AF</button>
+    <button class="btn" onclick="api('focus/astro')">Astro AF</button>
+    <button class="btn danger" onclick="api('focus/astro_stop')">Stop</button>
+  </div>
+  <div class="btn-grid cols-3">
+    <button class="btn" onmousedown="api('focus/in')" onmouseup="api('focus/stop')" ontouchstart="api('focus/in')" ontouchend="api('focus/stop')">IN</button>
+    <button class="btn danger" onclick="api('focus/stop')">STOP</button>
+    <button class="btn" onmousedown="api('focus/out')" onmouseup="api('focus/stop')" ontouchstart="api('focus/out')" ontouchend="api('focus/stop')">OUT</button>
+  </div>
+  <div class="btn-grid">
+    <button class="btn" onclick="api('focus/step',{steps:-5})">Step -5</button>
+    <button class="btn" onclick="api('focus/step',{steps:5})">Step +5</button>
+  </div>
+</div>
+
+<!-- VIDEO PANEL -->
+<div class="video-panel">
+  <div class="video-wrap" id="video-wrap">
+    <div class="crosshair"></div>
+    <div class="video-overlay">
+      <span class="vtag" id="vtag-mode">LIVE</span>
+      <span class="vtag" id="vtag-coord">RA -- DEC --</span>
+    </div>
+    <div class="no-signal" id="no-signal">
+      <div class="no-signal-icon">&#128301;</div>
+      <p>No Signal</p>
+      <p style="font-size:9px;margin-top:4px">Connect to telescope to see live feed</p>
+    </div>
+    <img id="live-feed" src="" alt="Live Feed" style="display:none">
+  </div>
+  <div class="video-toolbar">
+    <button class="vid-btn" onclick="startStream()" id="btn-stream">&#9654; Stream</button>
+    <button class="vid-btn danger" onclick="stopStream()">&#9632; Stop</button>
+    <button class="vid-btn" onclick="toggleLens()" id="btn-lens" title="Switch tele/wide lens">&#9651; Tele</button>
+    <button class="vid-btn" onclick="takeSnapshot()" title="Save snapshot">&#9636; Snap</button>
+    <div style="flex:1"></div>
+    <span style="font-family:var(--font-mono);font-size:9px;color:var(--muted)" id="stream-status">stream off</span>
+  </div>
+</div>
+
+<!-- RIGHT PANEL -->
+<div class="panel">
+  <div class="section-hdr">Status</div>
+  <div class="stat-grid">
+    <div class="stat-cell"><span class="stat-key">Connection</span><span class="stat-val" id="s-conn">--</span></div>
+    <div class="stat-cell"><span class="stat-key">Battery</span><span class="stat-val" id="s-battery">--</span></div>
+    <div class="stat-cell"><span class="stat-key">Temp</span><span class="stat-val" id="s-temp">--</span></div>
+    <div class="stat-cell"><span class="stat-key">CMOS Temp</span><span class="stat-val" id="s-cmos">--</span></div>
+    <div class="stat-cell"><span class="stat-key">Tracking</span><span class="stat-val" id="s-tracking">--</span></div>
+    <div class="stat-cell"><span class="stat-key">Stacking</span><span class="stat-val" id="s-stacking">--</span></div>
+    <div class="stat-cell" style="grid-column:1/-1"><span class="stat-key">GoTo State</span><span class="stat-val" id="s-goto">IDLE</span></div>
+    <div class="stat-cell" style="grid-column:1/-1"><span class="stat-key">Focus Position</span><span class="stat-val" id="s-focus">--</span></div>
+  </div>
+
+  <div class="section-hdr">GoTo - Deep Sky</div>
+  <div class="goto-form">
+    <div class="goto-row"><span class="goto-label">Target</span><input class="goto-input" id="goto-name" placeholder="M42 / NGC 224..."></div>
+    <div class="goto-row"><span class="goto-label">RA (deg)</span><input class="goto-input" id="goto-ra" placeholder="83.82" type="number" step="0.01"></div>
+    <div class="goto-row"><span class="goto-label">Dec (deg)</span><input class="goto-input" id="goto-dec" placeholder="-5.39" type="number" step="0.01"></div>
+    <div class="btn-grid">
+      <button class="btn primary" onclick="doGotoDSO()">SLEW</button>
+      <button class="btn" onclick="doOneClickGoto()">1-CLICK</button>
+      <button class="btn danger wide" onclick="api('astro/goto_stop')">ABORT GOTO</button>
+    </div>
+  </div>
+
+  <div class="section-hdr">Popular Targets</div>
+  <div class="presets">
+    <button class="preset-btn" onclick="setTarget('M42 Orion Nebula','83.82','-5.39')">M42</button>
+    <button class="preset-btn" onclick="setTarget('M31 Andromeda','10.68','41.27')">M31</button>
+    <button class="preset-btn" onclick="setTarget('M45 Pleiades','56.75','24.12')">M45</button>
+    <button class="preset-btn" onclick="setTarget('M13 Hercules GC','250.42','36.46')">M13</button>
+    <button class="preset-btn" onclick="setTarget('M51 Whirlpool','202.47','47.20')">M51</button>
+    <button class="preset-btn" onclick="setTarget('M57 Ring Nebula','283.40','33.03')">M57</button>
+    <button class="preset-btn" onclick="setTarget('M27 Dumbbell','299.90','22.72')">M27</button>
+    <button class="preset-btn" onclick="setTarget('Orion Nebula Wide','83.82','-5.39')">M42W</button>
+  </div>
+
+  <div class="section-hdr">GoTo - Solar System</div>
+  <div class="solar-grid">
+    <button class="solar-btn" onclick="api('astro/goto_solar',{target:0})">Sun</button>
+    <button class="solar-btn" onclick="api('astro/goto_solar',{target:1})">Moon</button>
+    <button class="solar-btn" onclick="api('astro/goto_solar',{target:2})">Mercury</button>
+    <button class="solar-btn" onclick="api('astro/goto_solar',{target:3})">Venus</button>
+    <button class="solar-btn" onclick="api('astro/goto_solar',{target:4})">Mars</button>
+    <button class="solar-btn" onclick="api('astro/goto_solar',{target:5})">Jupiter</button>
+    <button class="solar-btn" onclick="api('astro/goto_solar',{target:6})">Saturn</button>
+    <button class="solar-btn" onclick="api('astro/goto_solar',{target:7})">Uranus</button>
+    <button class="solar-btn" onclick="api('astro/goto_solar',{target:8})">Neptune</button>
+  </div>
+
+  <div class="section-hdr">Manual Slew</div>
+  <div class="joystick-wrap">
+    <div class="joystick-grid">
+      <div class="joy-btn empty"></div>
+      <div class="joy-btn" onmousedown="startJoy(0,1)"  onmouseup="stopJoy()" ontouchstart="startJoy(0,1)"  ontouchend="stopJoy()">&#9650;</div>
+      <div class="joy-btn empty"></div>
+      <div class="joy-btn" onmousedown="startJoy(-1,0)" onmouseup="stopJoy()" ontouchstart="startJoy(-1,0)" ontouchend="stopJoy()">&#9664;</div>
+      <div class="joy-btn center" onclick="stopJoy()">STOP</div>
+      <div class="joy-btn" onmousedown="startJoy(1,0)" onmouseup="stopJoy()" ontouchstart="startJoy(1,0)" ontouchend="stopJoy()">&#9654;</div>
+      <div class="joy-btn empty"></div>
+      <div class="joy-btn" onmousedown="startJoy(0,-1)" onmouseup="stopJoy()" ontouchstart="startJoy(0,-1)" ontouchend="stopJoy()">&#9660;</div>
+      <div class="joy-btn empty"></div>
+    </div>
+    <div class="joy-speed-wrap">
+      <span class="joy-speed-label">Speed</span>
+      <input type="range" id="joy-speed" min="10" max="100" value="50">
+      <span id="joy-speed-val">50</span>
+    </div>
+    <div class="btn-grid" style="width:100%;padding:0">
+      <button class="btn success" onclick="api('motion/track_start')">Track ON</button>
+      <button class="btn danger" onclick="api('motion/track_stop')">Track OFF</button>
+    </div>
+  </div>
+
+  <div class="section-hdr">Astro Modes</div>
+  <div class="btn-grid">
+    <button class="btn primary" onclick="api('astro/calibrate_start')">Calibrate</button>
+    <button class="btn danger" onclick="api('astro/calibrate_stop')">Stop Cal</button>
+    <button class="btn success" onclick="showStackDialog()">Stack Start</button>
+    <button class="btn danger" onclick="api('astro/stack_stop')">Stack Stop</button>
+    <button class="btn" onclick="api('astro/plate_solve')">Plate Solve</button>
+    <button class="btn danger" onclick="api('astro/plate_solve_stop')">Stop Solve</button>
+    <button class="btn" onclick="api('astro/sky_finder')">Sky Finder</button>
+    <button class="btn danger" onclick="api('astro/sky_finder_stop')">Stop Find</button>
+    <button class="btn warn" onclick="api('astro/ai_enhance')">AI Enhance</button>
+    <button class="btn danger" onclick="api('astro/ai_enhance_stop')">Stop AI</button>
+    <button class="btn primary wide" onclick="api('astro/one_click_shoot')">One-Click Shoot</button>
+  </div>
+
+  <div class="section-hdr">System</div>
+  <div class="btn-grid">
+    <button class="btn" onclick="api('system/sync_time')">Sync Time</button>
+    <button class="btn" onclick="api('system/led_on')">LED On</button>
+    <button class="btn" onclick="api('system/led_off')">LED Off</button>
+    <button class="btn" onclick="showLocationDialog()">Set Location</button>
+    <button class="btn warn wide" onclick="if(confirm('Reboot telescope?')) api('system/reboot')">REBOOT</button>
+    <button class="btn danger wide" onclick="if(confirm('Power down?')) api('system/power_down')">POWER DOWN</button>
+  </div>
+
+  <div class="section-hdr">Event Log</div>
+  <div id="log"></div>
+</div>
+</div></div>
+
+<!-- MODALS -->
+<div class="modal-backdrop" id="stack-modal">
+  <div class="modal-box">
+    <div class="modal-title">Start Live Stacking</div>
+    <div class="param-row"><span class="param-label">Exp (ms)</span><input id="s-exp" type="number" value="10000" class="goto-input" style="width:120px"></div>
+    <div class="param-row"><span class="param-label">Gain</span><input id="s-gain" type="number" value="0" class="goto-input" style="width:120px"></div>
+    <div class="param-row"><span class="param-label">Count</span><input id="s-count" type="number" value="0" class="goto-input" style="width:120px"></div>
+    <div class="modal-actions">
+      <button class="btn primary" style="flex:1" onclick="doStartStack()">START</button>
+      <button class="btn danger" onclick="document.getElementById('stack-modal').style.display='none'">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="loc-modal">
+  <div class="modal-box">
+    <div class="modal-title">Set Observer Location</div>
+    <div class="param-row"><span class="param-label">Latitude</span><input id="loc-lat" type="number" step="0.0001" value="51.5074" class="goto-input" style="width:140px"></div>
+    <div class="param-row"><span class="param-label">Longitude</span><input id="loc-lon" type="number" step="0.0001" value="-0.1278" class="goto-input" style="width:140px"></div>
+    <div class="param-row"><span class="param-label">Alt (m)</span><input id="loc-alt" type="number" value="0" class="goto-input" style="width:140px"></div>
+    <div class="modal-actions">
+      <button class="btn primary" style="flex:1" onclick="doSetLocation()">SET</button>
+      <button class="btn" onclick="autoLocate()">Auto Detect</button>
+      <button class="btn danger" onclick="document.getElementById('loc-modal').style.display='none'">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const socket = io();
+socket.on('status', d => updateConnectionStatus(d));
+socket.on('state_update', d => updateStateDisplay(d));
+socket.on('telescope_event', d => { updateStateDisplay(d.state); });
+
+async function api(endpoint, body=null) {
+  try {
+    const r = await fetch('/api/'+endpoint, {method:'POST',
+      headers:{'Content-Type':'application/json'}, body: body ? JSON.stringify(body) : null});
+    const d = await r.json();
+    if (d.status==='ok') toast(d.message||endpoint, false);
+    else toast(d.message||'Error', true);
+    addLog(d.status==='ok'?'ok':'err', d.message||endpoint);
+    return d;
+  } catch(e) { toast('Request failed: '+e.message, true); addLog('err',e.message); }
+}
+
+function connectTelescope() { api('connect'); addLog('info','Connecting...'); }
+
+function updateConnectionStatus(d) {
+  const dot = document.getElementById('status-dot');
+  const txt = document.getElementById('status-text');
+  if (d.connected) {
+    dot.classList.add('connected'); txt.textContent = 'CONNECTED  '+d.ip;
+    addLog('ok', 'Connected at '+d.ip);
+  } else { dot.classList.remove('connected'); txt.textContent = 'DISCONNECTED'; }
+  if (d.state) updateStateDisplay(d.state);
+}
+
+function updateStateDisplay(s) {
+  if (!s) return;
+  setS('s-conn', s.connected?'ONLINE':'OFFLINE', s.connected?'ok':'alert');
+  setS('s-battery', s.battery!=null?s.battery+'%':'--', s.battery<20?'warn':'ok');
+  setS('s-temp', s.temperature!=null?s.temperature+'C':'--', s.temperature>50?'warn':'');
+  setS('s-cmos', s.cmos_temp!=null?s.cmos_temp+'C':'--');
+  setS('s-tracking', s.tracking?'ON':'OFF', s.tracking?'ok':'');
+  setS('s-stacking', s.stacking?'ON '+(s.stacking_progress||0)+'%':'OFF', s.stacking?'ok':'');
+  const gl={0:'IDLE',1:'SLEWING',2:'ARRIVED',3:'TRACKING',4:'ERROR'};
+  setS('s-goto', gl[s.goto_state]||'IDLE', s.goto_state===4?'alert':s.goto_state>0?'ok':'');
+  setS('s-focus', s.focus_position!=null?s.focus_position:'--');
+}
+
+function setS(id,val,cls='') {
+  const el=document.getElementById(id); if(!el) return;
+  el.textContent=val; el.className='stat-val'+(cls?' '+cls:'');
+}
+
+setInterval(async()=>{
+  try {
+    const r=await fetch('/api/status'); const d=await r.json();
+    if(d.state) updateStateDisplay(d.state);
+  } catch(e){}
+}, 3000);
+
+const pendingParams={};
+function updateParam(key,val) {
+  document.getElementById('v-'+key).textContent=val;
+  pendingParams[key]=parseInt(val);
+}
+function sendAllParams() { api('camera/params', {...pendingParams}); }
+
+function doGotoDSO() {
+  const ra=parseFloat(document.getElementById('goto-ra').value);
+  const dec=parseFloat(document.getElementById('goto-dec').value);
+  const name=document.getElementById('goto-name').value;
+  if(isNaN(ra)||isNaN(dec)){toast('Enter valid RA/Dec',true);return;}
+  api('astro/goto_dso',{ra,dec,name});
+  document.getElementById('vtag-coord').textContent='RA '+ra.toFixed(2)+' Dec '+dec.toFixed(2);
+}
+function doOneClickGoto() {
+  const ra=parseFloat(document.getElementById('goto-ra').value);
+  const dec=parseFloat(document.getElementById('goto-dec').value);
+  const name=document.getElementById('goto-name').value;
+  if(isNaN(ra)||isNaN(dec)){toast('Enter valid RA/Dec',true);return;}
+  api('astro/goto_one_click',{ra,dec,name});
+}
+function setTarget(name,ra,dec) {
+  document.getElementById('goto-name').value=name;
+  document.getElementById('goto-ra').value=ra;
+  document.getElementById('goto-dec').value=dec;
+  document.getElementById('vtag-coord').textContent=name;
+}
+
+let joyInterval=null;
+function startJoy(x,y) {
+  const spd=parseInt(document.getElementById('joy-speed').value);
+  api('motion/joystick',{x:x*spd,y:y*spd});
+  joyInterval=setInterval(()=>api('motion/joystick',{x:x*spd,y:y*spd}),200);
+}
+function stopJoy() { clearInterval(joyInterval); api('motion/joystick_stop'); }
+document.getElementById('joy-speed').addEventListener('input',function(){
+  document.getElementById('joy-speed-val').textContent=this.value;
+});
+
+function showStackDialog(){document.getElementById('stack-modal').style.display='flex';}
+function doStartStack(){
+  api('astro/stack_start',{
+    exp_ms:parseInt(document.getElementById('s-exp').value),
+    gain:parseInt(document.getElementById('s-gain').value),
+    count:parseInt(document.getElementById('s-count').value)});
+  document.getElementById('stack-modal').style.display='none';
+}
+function showLocationDialog(){document.getElementById('loc-modal').style.display='flex';}
+function doSetLocation(){
+  api('system/location',{
+    lat:parseFloat(document.getElementById('loc-lat').value),
+    lon:parseFloat(document.getElementById('loc-lon').value),
+    alt:parseFloat(document.getElementById('loc-alt').value)});
+  document.getElementById('loc-modal').style.display='none';
+}
+function autoLocate(){
+  if(navigator.geolocation){
+    navigator.geolocation.getCurrentPosition(p=>{
+      document.getElementById('loc-lat').value=p.coords.latitude.toFixed(4);
+      document.getElementById('loc-lon').value=p.coords.longitude.toFixed(4);
+      document.getElementById('loc-alt').value=Math.round(p.coords.altitude||0);
+      toast('Location detected',false);
+    },()=>toast('Geolocation failed',true));
+  }
+}
+
+// Stream state
+let streamLens = 'tele';
+
+function startLive(){
+  // Full cold-start sequence: enter_camera → open_camera (with RTSP payload) → go_live → stream
+  addLog('info', 'Starting live sequence...');
+  document.getElementById('stream-status').textContent = 'initialising...';
+  api('camera/start_live').then(r => {
+    addLog('info', 'Camera sequence sent — waiting for RTSP...');
+    // Give telescope ~2s to spin up RTSP then start the stream
+    setTimeout(() => startStream(), 2200);
+  }).catch(e => {
+    addLog('warn', 'start_live failed: ' + e);
+    toast('Start live failed', true);
+  });
+} // 'tele' or 'wide'
+
+function streamEndpoint(){ return streamLens==='wide' ? '/stream/wide' : '/stream'; }
+
+function startStream(){
+  const img=document.getElementById('live-feed');
+  const ns=document.getElementById('no-signal');
+  const url=streamEndpoint()+'?t='+Date.now();
+  img.onerror=function(){ 
+    document.getElementById('stream-status').textContent='stream error';
+    document.getElementById('stream-status').style.color='var(--danger)';
+  };
+  img.onload=function(){
+    document.getElementById('stream-status').style.color='var(--muted)';
+  };
+  img.src=url; img.style.display='block'; ns.style.display='none';
+  document.getElementById('stream-status').textContent='streaming ('+streamLens+')';
+  document.getElementById('btn-stream').style.color='var(--accent)';
+  document.getElementById('btn-stream').style.borderColor='var(--accent)';
+  addLog('info','Stream started: '+streamLens+' lens ('+streamEndpoint()+')');
+}
+
+function stopStream(){
+  const img=document.getElementById('live-feed');
+  img.src=''; img.style.display='none';
+  document.getElementById('no-signal').style.display='flex';
+  document.getElementById('stream-status').textContent='stream off';
+  document.getElementById('stream-status').style.color='var(--muted)';
+  document.getElementById('btn-stream').style.color='';
+  document.getElementById('btn-stream').style.borderColor='';
+}
+
+function toggleLens(){
+  const wasStreaming = document.getElementById('live-feed').style.display==='block';
+  streamLens = streamLens==='tele' ? 'wide' : 'tele';
+  const btn=document.getElementById('btn-lens');
+  if(streamLens==='wide'){
+    btn.textContent='\u25BD Wide';
+    btn.style.color='var(--warn)';
+    btn.style.borderColor='var(--warn)';
+  } else {
+    btn.textContent='\u25B3 Tele';
+    btn.style.color='';
+    btn.style.borderColor='';
+  }
+  if(wasStreaming) startStream(); // restart on new endpoint
+  addLog('info','Lens: '+streamLens);
+}
+
+function takeSnapshot(){
+  const img=document.getElementById('live-feed');
+  if(!img.src || img.style.display==='none'){
+    toast('Start stream first',true); return;
+  }
+  // Fetch current MJPEG frame as blob and trigger download
+  fetch(streamEndpoint()+'?t='+Date.now())
+    .then(r=>r.body.getReader())
+    .then(reader=>{
+      // Read first complete JPEG from the MJPEG stream
+      let buf=new Uint8Array(0);
+      function pump(){
+        return reader.read().then(({done,value})=>{
+          if(done) return;
+          const tmp=new Uint8Array(buf.length+value.length);
+          tmp.set(buf); tmp.set(value,buf.length); buf=tmp;
+          // Look for JPEG end marker FF D9
+          for(let i=0;i<buf.length-1;i++){
+            if(buf[i]===0xFF && buf[i+1]===0xD9){
+              reader.cancel();
+              // Find JPEG start FF D8 FF
+              let start=0;
+              for(let j=0;j<i;j++){
+                if(buf[j]===0xFF && buf[j+1]===0xD8 && buf[j+2]===0xFF){start=j;break;}
+              }
+              const blob=new Blob([buf.slice(start,i+2)],{type:'image/jpeg'});
+              const a=document.createElement('a');
+              a.href=URL.createObjectURL(blob);
+              const ts=new Date().toISOString().replace(/[:.]/g,'-').slice(0,19);
+              a.download='dwarf_'+streamLens+'_'+ts+'.jpg';
+              a.click();
+              addLog('info','Snapshot saved: '+a.download);
+              toast('Snapshot saved',false);
+              return;
+            }
+          }
+          return pump();
+        });
+      }
+      return pump();
+    })
+    .catch(e=>{ toast('Snapshot failed: '+e,true); addLog('warn','Snapshot error: '+e); });
+}
+
+function addLog(type,msg){
+  const log=document.getElementById('log');
+  const now=new Date().toTimeString().slice(0,8);
+  const line=document.createElement('div');
+  line.className='log-line';
+  line.innerHTML='<span class="log-time">'+now+'</span><span class="log-msg '+type+'">'+msg+'</span>';
+  log.prepend(line);
+  while(log.children.length>60) log.removeChild(log.lastChild);
+}
+
+let toastTimer;
+function toast(msg,isErr=false){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.className='show'+(isErr?' err':'');
+  clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.className='',2500);
+}
+
+addLog('info','DWARF Lab Web Controller loaded');
+fetch('/api/status').then(r=>r.json()).then(d=>{if(d.state) updateStateDisplay(d.state);});
+</script>
+</body>
+</html>
