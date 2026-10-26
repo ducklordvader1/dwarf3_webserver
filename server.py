@@ -1,13 +1,31 @@
 import cv2
 import secrets
-import sys, time, threading, logging, subprocess, os
+import sys, time, threading, logging, subprocess, os, argparse
 from flask import Flask, jsonify, request, Response
 from flask_socketio import SocketIO, emit
 from dwarflab_controller import DwarfLab
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("dwarf_server")
-TELESCOPE_IP = sys.argv[1] if len(sys.argv) > 1 else "192.168.88.1"
+
+# Parsed at import so module-level handlers can read TELESCOPE_IP.
+_parser = argparse.ArgumentParser(
+    description="DWARF 3 web controller",
+    formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+)
+_parser.add_argument("telescope_ip", nargs="?", default="192.168.88.1",
+                     help="IP address of the DWARF 3 telescope")
+_parser.add_argument("--host", default="0.0.0.0",
+                     help="Interface to bind the web server to. Default 0.0.0.0 "
+                          "exposes it on the LAN; use 127.0.0.1 to restrict to "
+                          "this machine. This service has no authentication - "
+                          "only bind it on trusted networks.")
+_parser.add_argument("--port", type=int, default=5000,
+                     help="TCP port for the web server")
+_args = _parser.parse_args()
+TELESCOPE_IP = _args.telescope_ip
+BIND_HOST    = _args.host
+BIND_PORT    = _args.port
 app = Flask(__name__, static_folder="static", template_folder="static")
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY") or secrets.token_hex(32)
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
@@ -478,5 +496,8 @@ if __name__ == "__main__":
     threading.Thread(target=state_broadcaster,daemon=True).start()
     print("DWARF Lab Web Controller")
     print("Telescope IP: " + TELESCOPE_IP)
-    print("Open browser: http://localhost:5000")
-    socketio.run(app,host="0.0.0.0",port=5000,debug=False,allow_unsafe_werkzeug=True)
+    _shown = "localhost" if BIND_HOST in ("0.0.0.0", "127.0.0.1") else BIND_HOST
+    print(f"Open browser: http://{_shown}:{BIND_PORT}")
+    if BIND_HOST == "0.0.0.0":
+        print("Binding on 0.0.0.0 (all interfaces) - no auth; use only on a trusted network.")
+    socketio.run(app, host=BIND_HOST, port=BIND_PORT, debug=False, allow_unsafe_werkzeug=True)

@@ -75,6 +75,20 @@ The telescope must be joined to the same network. Its default soft-AP address
 is `192.168.88.1`; once joined to your WiFi it gets a DHCP lease (the examples
 here assume `192.168.1.10`).
 
+### Options
+
+`server.py` accepts an optional telescope IP (first argument) plus:
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--host` | `0.0.0.0` | Interface to bind to. `0.0.0.0` exposes the UI on the LAN; use `127.0.0.1` to restrict it to this machine. There is no authentication, so only bind on a trusted network. |
+| `--port` | `5000` | Web server TCP port. |
+
+```bash
+# bind to localhost only, on a custom port
+python3 server.py 192.168.1.10 --host 127.0.0.1 --port 8080
+```
+
 ---
 
 ## Network / protocol summary
