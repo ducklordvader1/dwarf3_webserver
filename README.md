@@ -10,6 +10,10 @@ The protocol implementation targets the **October 2026** DWARF 3 firmware
 generation. See [Protocol notes](#protocol-notes) and the changelog header
 in `dwarflab_controller.py` for version-specific details.
 
+> **Security:** This application has no authentication, authorization, or
+> transport encryption of any kind. Run it only on an internal, trusted
+> network — never expose it directly to the public internet.
+
 ---
 
 ## Components
