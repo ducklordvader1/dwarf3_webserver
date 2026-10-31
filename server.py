@@ -53,6 +53,9 @@ def _bundled_tool(name):
     return name  # fall back to PATH
 app = Flask(__name__, static_folder=_resource_path("static"), template_folder=_resource_path("static"))
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY") or secrets.token_hex(32)
+# cors_allowed_origins="*" is acceptable only because the sole Socket.IO handler
+# below is a no-op "connect" and no state-changing socket events exist. If you
+# add a socket event that performs an action, restrict this to trusted origins.
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
 dwarf = None
 

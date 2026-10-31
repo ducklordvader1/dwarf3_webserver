@@ -1,5 +1,13 @@
-flask>=3.1.2
-flask-socketio>=5.4.0
-opencv-python-headless>=4.10.0
-requests>=2.32.5
-websocket-client>=1.8.0
+# Direct dependencies, pinned to known-good major versions.
+# Upper bounds prevent an untested major (e.g. opencv 5.x / numpy 2.5) from
+# silently entering a tagged release build; raise them deliberately after testing.
+flask>=3.1.2,<4
+flask-socketio>=5.4.0,<6
+opencv-python-headless>=4.10.0,<5
+requests>=2.32.5,<3
+websocket-client>=1.8.0,<2
+
+# Security floors on sensitive transitive dependencies (pulled in via requests).
+# Keep these at or above the versions that fix known CVEs.
+certifi>=2026.10.18
+urllib3>=2.5.0
