@@ -1,0 +1,82 @@
+name: Build & Release
+
+# Build standalone one-folder binaries for Linux x64 and Windows x64 and
+# attach them to a GitHub Release whenever a version tag (vX.Y.Z) is pushed.
+# You can also run it manually from the Actions tab (workflow_dispatch) to test
+# the build without creating a release.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write   # needed to create/upload the Release
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            name: linux-x64
+            ffmpeg_url: "https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz"
+          - os: windows-latest
+            name: windows-x64
+            ffmpeg_url: "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller
+
+      # --- Fetch a portable ffmpeg/ffprobe and expose its dir via FFMPEG_DIR ---
+      - name: Fetch ffmpeg (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          set -e
+          curl -L "${{ matrix.ffmpeg_url }}" -o ffmpeg.tar.xz
+          mkdir ffmpeg_dl && tar -xf ffmpeg.tar.xz -C ffmpeg_dl --strip-components=1
+          echo "FFMPEG_DIR=$PWD/ffmpeg_dl" >> "$GITHUB_ENV"
+
+      - name: Fetch ffmpeg (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Invoke-WebRequest "${{ matrix.ffmpeg_url }}" -OutFile ffmpeg.zip
+          Expand-Archive ffmpeg.zip -DestinationPath ffmpeg_dl
+          $bin = (Get-ChildItem -Recurse -Filter ffmpeg.exe ffmpeg_dl | Select-Object -First 1).DirectoryName
+          "FFMPEG_DIR=$bin" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Build with PyInstaller
+        run: pyinstaller --noconfirm --clean dwarf3_webserver.spec
+
+      # --- Package the one-folder output as a zip ---
+      - name: Package (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          cd dist
+          zip -r "../dwarf3_webserver-${{ matrix.name }}.zip" dwarf3_webserver
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Compress-Archive -Path dist/dwarf3_webserver -DestinationPath "dwarf3_webserver-${{ matrix.name }}.zip"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dwarf3_webserver-${{ matrix.name }}
+          path: dwarf3_webserver-${{ matrix.name }}.zip
+
+      - name: Attach to Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dwarf3_webserver-${{ matrix.name }}.zip

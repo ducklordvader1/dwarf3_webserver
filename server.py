@@ -1,6 +1,6 @@
 import cv2
 import secrets
-import time, threading, logging, subprocess, os, argparse, json
+import sys, time, threading, logging, subprocess, os, argparse, json
 from flask import Flask, jsonify, request, Response
 from flask_socketio import SocketIO, emit
 from dwarflab_controller import DwarfLab
@@ -26,7 +26,32 @@ _args = _parser.parse_args()
 TELESCOPE_IP = _args.telescope_ip
 BIND_HOST    = _args.host
 BIND_PORT    = _args.port
-app = Flask(__name__, static_folder="static", template_folder="static")
+
+# ---- PyInstaller / standalone-bundle awareness ----------------------------------
+# When frozen by PyInstaller, data files live under sys._MEIPASS (onefile) or the
+# executable's own folder (onefolder), not next to this .py. _resource_path()
+# resolves bundled data (e.g. the static/ UI) in both frozen and source runs.
+def _resource_path(*parts):
+    base = getattr(sys, "_MEIPASS", None)
+    if base is None:
+        base = os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(base, *parts)
+
+# _bundled_tool() returns the path to a tool (ffprobe/ffmpeg) shipped alongside the
+# executable, if present; otherwise just the bare name so PATH is used. On Windows
+# the bundled copy has a .exe suffix.
+def _bundled_tool(name):
+    exe_dir = os.path.dirname(sys.executable) if getattr(sys, "frozen", False) \
+              else os.path.dirname(os.path.abspath(__file__))
+    cand = os.path.join(exe_dir, name + (".exe" if os.name == "nt" else ""))
+    if os.path.isfile(cand):
+        return cand
+    # one-folder builds place bundled binaries under _internal/ as well
+    cand2 = os.path.join(exe_dir, "_internal", name + (".exe" if os.name == "nt" else ""))
+    if os.path.isfile(cand2):
+        return cand2
+    return name  # fall back to PATH
+app = Flask(__name__, static_folder=_resource_path("static"), template_folder=_resource_path("static"))
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY") or secrets.token_hex(32)
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
 dwarf = None
@@ -450,7 +475,7 @@ def stream_info():
         url = f"rtsp://{TELESCOPE_IP}:554/{ch}/stream0"
         try:
             out = subprocess.check_output(
-                ["ffprobe","-v","quiet","-rtsp_transport","tcp",
+                [_bundled_tool("ffprobe"),"-v","quiet","-rtsp_transport","tcp",
                  "-show_streams","-of","json", url],
                 timeout=4, stderr=subprocess.DEVNULL
             )
@@ -465,7 +490,7 @@ def stream_info():
 
 @app.route("/")
 def index():
-    with open(os.path.join(os.path.dirname(os.path.abspath(__file__)),"static","index.html")) as f:
+    with open(_resource_path("static", "index.html")) as f:
         return f.read()
 
 @socketio.on("connect")
