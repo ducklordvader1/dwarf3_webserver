@@ -21,6 +21,43 @@ in `dwarflab_controller.py` for version-specific details.
 
 ---
 
+## Download (standalone, no Python needed)
+
+Prebuilt **one-folder** binaries for **Linux x64** and **Windows x64** are
+attached to each [GitHub Release](../../releases). They bundle Python, all
+dependencies, the web UI, and `ffmpeg`/`ffprobe` - nothing to install.
+
+1. Download the zip for your platform (`dwarf3_webserver-linux-x64.zip` or
+   `dwarf3_webserver-windows-x64.zip`) and extract it anywhere.
+2. Run it, passing your telescope's IP:
+
+   **Windows** - open a terminal in the extracted folder:
+   ```bat
+   cd dwarf3_webserver
+   dwarf3_webserver.exe 192.168.1.10
+   ```
+
+   **Linux** - from a terminal:
+   ```bash
+   cd dwarf3_webserver
+   ./dwarf3_webserver 192.168.1.10
+   ```
+3. Open <http://localhost:5000>.
+
+The same `--host` / `--port` options described under [Options](#options) work on
+the binary too.
+
+> **Windows SmartScreen / antivirus:** the binaries are unsigned, so Windows may
+> show a "Windows protected your PC" prompt (click *More info -> Run anyway*) and
+> some antivirus tools may flag them - this is a known false-positive pattern for
+> PyInstaller apps, not a sign of malware. If you'd rather not trust a binary,
+> run from source instead (below).
+
+The rest of this document describes **running from source** and the underlying
+protocol.
+
+---
+
 ## Components
 
 | File | Purpose |
